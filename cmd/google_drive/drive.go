@@ -58,12 +58,12 @@ func (g *GoogleDrive) DeployBackupToGoogleDrive(backupFilePath string) {
 		Create(fileMetadata).
 		Media(file).
 		SupportsAllDrives(true).
-		//ProgressUpdater(func(now, size int64) { log.Printf("%d, %d\r", now, size) }).
+		ProgressUpdater(func(now, size int64) { log.Printf("%d, %d\r", now, size) }).
 		Do()
 
 	if err != nil {
 		log.Fatalf("Warning: unable to upload file %v", err)
 	}
 
-	log.Printf("New file id: %s\n", res.ExportLinks)
+	log.Printf("New file id: %s\n", res.Id)
 }

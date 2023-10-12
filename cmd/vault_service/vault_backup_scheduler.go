@@ -2,7 +2,9 @@ package vault_service
 
 import (
 	"fmt"
+	"github.com/go-co-op/gocron"
 	"github.com/gorilla/websocket"
+	vault "github.com/hashicorp/vault/api"
 	"github.com/tidwall/gjson"
 	"log"
 	"net/http"
@@ -10,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"time"
-	"vault_backup/cmd/config"
 	"vault_backup/cmd/google_drive"
 )
 
@@ -19,11 +20,12 @@ const (
 	websocketPath = "/v1/sys/events/subscribe/" + eventType
 )
 
-func pareJsonEvent(json string) string {
-	return gjson.Get(json, "data.event_type").String()
+type BackupScheduler struct {
+	vault     *Vault
+	appConfig AppConfig
 }
 
-func handleWebSocketEvents(conn *websocket.Conn, events chan string) {
+func eventListenerBackup(conn *websocket.Conn, events chan string) {
 	log.Println("Connected to vault_service events. Listening...")
 	for {
 		_, message, err := conn.ReadMessage()
@@ -34,6 +36,21 @@ func handleWebSocketEvents(conn *websocket.Conn, events chan string) {
 		eventType := pareJsonEvent(string(message))
 		events <- eventType
 	}
+}
+
+func scheduledTimeBackup(events chan string) {
+	s := gocron.NewScheduler(time.UTC)
+
+	_, err := s.Every(10).Hour().Do(func() {
+		log.Println("Performing scheduled backup...")
+
+		events <- "scheduled backup"
+	})
+	if err != nil {
+		log.Fatalf("error while scheduling cron job %v", err)
+	}
+
+	s.StartBlocking()
 }
 
 func onEventVaultBackup(events chan string, vault *Vault, googleDrive *google_drive.GoogleDrive) {
@@ -52,11 +69,13 @@ func onEventVaultBackup(events chan string, vault *Vault, googleDrive *google_dr
 	}
 }
 
-func scheduledTimeBackup() {}
+func pareJsonEvent(json string) string {
+	return gjson.Get(json, "data.event_type").String()
+}
 
-func CreateVaultBackups(config config.AppConfig, vault *Vault, googleDrive *google_drive.GoogleDrive) {
+func CreateVaultBackups(token vault.Secret, vault *Vault, googleDrive *google_drive.GoogleDrive) {
 	wsURL := "wss://0.0.0.0:8300" + websocketPath + "?json=true"
-	wsHeader := http.Header{"X-Vault-Token": []string{config.VaultToken}}
+	wsHeader := http.Header{"X-Vault-Token": []string{token.Auth.ClientToken}}
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, wsHeader)
 	if err != nil {
@@ -66,8 +85,9 @@ func CreateVaultBackups(config config.AppConfig, vault *Vault, googleDrive *goog
 	defer conn.Close()
 
 	events := make(chan string, 10)
-	go handleWebSocketEvents(conn, events)
+	go eventListenerBackup(conn, events)
 	go onEventVaultBackup(events, vault, googleDrive)
+	go scheduledTimeBackup(events)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
