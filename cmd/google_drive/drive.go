@@ -9,26 +9,27 @@ import (
 	"vault_backup/cmd/config"
 )
 
-type GoogleDrive struct {
-	service *drive.Service
+type GoogleDriveClient struct {
+	service     *drive.Service
+	driveConfig *config.GoogleDriveConfig
 }
 
-func GetGoogleDriveService(config config.AppConfig) (*GoogleDrive, error) {
-	ctx := context.Background()
-	service, err := drive.NewService(ctx, option.WithCredentialsFile(config.GoogleServiceAccountFilePath))
+func GetGoogleDriveService(ctx context.Context, config config.AppConfig) (*GoogleDriveClient, error) {
+	service, err := drive.NewService(ctx, option.WithCredentialsFile(config.GoogleDriveConfig.ServiceAccountFilePath))
 	if err != nil {
 		log.Fatalf("Warning: Unable to create drive Client %v", err)
 		return nil, err
 	}
 
-	gd := GoogleDrive{
-		service: service,
+	gd := GoogleDriveClient{
+		service:     service,
+		driveConfig: &config.GoogleDriveConfig,
 	}
 
 	return &gd, nil
 }
 
-func (g *GoogleDrive) ListFiles() {
+func (g *GoogleDriveClient) ListFiles() {
 	res, err := g.service.Files.List().Do()
 	if err != nil {
 		log.Fatalf("Warning: unable to list files %v", err)
@@ -36,7 +37,7 @@ func (g *GoogleDrive) ListFiles() {
 	log.Printf("Files %s", (res.Files))
 }
 
-func (g *GoogleDrive) DeployBackupToGoogleDrive(backupFilePath string) {
+func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) {
 	file, err := os.Open(backupFilePath)
 	if err != nil {
 		log.Fatalf("Warning: unable to load a file %s, %v", backupFilePath, err)
@@ -51,7 +52,7 @@ func (g *GoogleDrive) DeployBackupToGoogleDrive(backupFilePath string) {
 
 	fileMetadata := &drive.File{
 		Name:    info.Name(),
-		Parents: []string{"1gJCvUBRdry1JZISJ6MCoCEcKFncK9fZD"},
+		Parents: []string{g.driveConfig.DeployFolderId},
 	}
 
 	res, err := g.service.Files.

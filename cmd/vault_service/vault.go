@@ -23,7 +23,7 @@ const (
 )
 
 func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault, *vault.Secret, error) {
-	client, err := vault.NewClient(&vault.Config{Address: config.VaultAddr})
+	client, err := vault.NewClient(&vault.Config{Address: config.VaultConfig.Address})
 	if err != nil {
 		log.Fatalf("unable to initialize Vault client: %v", err)
 	}
@@ -32,24 +32,24 @@ func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault
 		return nil, nil, fmt.Errorf("unable to initialize AppRole auth method: %w", err)
 	}
 
-	vault := &Vault{
+	v := &Vault{
 		client: client,
 	}
 
-	token, err := vault.login(ctx, config)
+	token, err := v.login(ctx, config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("vault_service login error: %w", err)
 	}
 
 	log.Println("connecting to vault_service: success!")
 
-	return vault, token, nil
+	return v, token, nil
 }
 
 func (v *Vault) login(ctx context.Context, config config.AppConfig) (*vault.Secret, error) {
 	appRoleAuth, err := auth.NewAppRoleAuth(
-		config.VaultAppRoleId,
-		&auth.SecretID{FromString: config.VaultAppSecretId})
+		config.VaultConfig.AppRoleId,
+		&auth.SecretID{FromString: config.VaultConfig.AppSecretId})
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize AppRole auth method: %w", err)
 	}

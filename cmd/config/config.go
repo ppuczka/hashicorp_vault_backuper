@@ -2,44 +2,58 @@ package config
 
 import (
 	vault "github.com/hashicorp/vault/api"
+	"github.com/spf13/viper"
 	"log"
 	"os"
 )
 
-const defaultVaultAddress = "https://127.0.0.0:8200"
-const serviceAccountKeyPath = "key.json"
-const googleDriveDeployFolderId = "1gJCvUBRdry1JZISJ6MCoCEcKFncK9fZD"
+const appName = "VaultBackup"
 
 type AppConfig struct {
-	VaultAddr                    string
-	VaultToken                   string
-	VaultAppRoleId               string
-	VaultAppSecretId             string
-	GoogleServiceAccountFilePath string
-	GoogleDriveDeployFolderId    string
+	AppName           string
+	VaultConfig       VaultConfig
+	GoogleDriveConfig GoogleDriveConfig
 }
 
-func GetVaultConfig() AppConfig {
-	appConfig := AppConfig{}
+type VaultConfig struct {
+	Address                       string
+	AppRoleId                     string
+	AppSecretId                   string
+	WebSocketEventBaseUrl         string
+	ListenedEventsType            string
+	ScheduledSnapshotInterval     string
+	ScheduledSnapshotIntervalUnit string
+	SnapshotFolder                string
+}
+
+type GoogleDriveConfig struct {
+	DeployFolderId         string
+	ServiceAccountFilePath string
+}
+
+func GetVaultConfig(viper *viper.Viper) AppConfig {
+	appConfig := AppConfig{
+		AppName: appName,
+	}
+
 	if len(os.Getenv(vault.EnvVaultAddress)) == 0 {
-		log.Printf("Vault address not found defaulting to %s", defaultVaultAddress)
-		appConfig.VaultAddr = defaultVaultAddress
+		appConfig.VaultConfig.Address = viper.GetString("vault.address")
 	} else {
 		log.Printf("Vault address: %s", os.Getenv(vault.EnvVaultAddress))
-		appConfig.VaultAddr = os.Getenv(vault.EnvVaultAddress)
+		appConfig.VaultConfig.Address = os.Getenv(vault.EnvVaultAddress)
 	}
 
-	if len(os.Getenv(vault.EnvVaultToken)) != 28 {
-		log.Print("Vault token is not valid")
-	} else {
-		appConfig.VaultToken = os.Getenv(vault.EnvVaultToken)
-	}
+	appConfig.VaultConfig.AppRoleId = viper.GetString("vault.app_role_id")
+	appConfig.VaultConfig.WebSocketEventBaseUrl = viper.GetString("vault.web_socket_event_base_url")
+	appConfig.VaultConfig.ListenedEventsType = viper.GetString("vault.listened_event_type")
+	appConfig.VaultConfig.ScheduledSnapshotInterval = viper.GetString("vault.scheduled_snapshot_interval")
+	appConfig.VaultConfig.ScheduledSnapshotIntervalUnit = viper.GetString("vault.scheduled_snapshot_interval_unit")
+	appConfig.VaultConfig.SnapshotFolder = viper.GetString("vault.snapshot_folder")
 
-	// Todo error handling
-	appConfig.VaultAppRoleId = os.Getenv("APPROLE_ROLE_ID")
-	appConfig.VaultAppSecretId = os.Getenv("APPROLE_SECRET_ID")
+	appConfig.GoogleDriveConfig.ServiceAccountFilePath = viper.GetString("google_drive.service_account_file_path")
+	appConfig.GoogleDriveConfig.DeployFolderId = viper.GetString("google_drive.deploy_folder_id")
 
-	appConfig.GoogleServiceAccountFilePath = serviceAccountKeyPath
-	appConfig.GoogleDriveDeployFolderId = googleDriveDeployFolderId
+	appConfig.VaultConfig.AppSecretId = os.Getenv("APPROLE_SECRET_ID")
+
 	return appConfig
 }
