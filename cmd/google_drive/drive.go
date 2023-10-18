@@ -6,6 +6,8 @@ import (
 	"google.golang.org/api/option"
 	"log"
 	"os"
+	"sync"
+	"time"
 	"vault_backup/cmd/config"
 )
 
@@ -29,12 +31,70 @@ func GetGoogleDriveService(ctx context.Context, config config.AppConfig) (*Googl
 	return &gd, nil
 }
 
-func (g *GoogleDriveClient) ListFiles() {
-	res, err := g.service.Files.List().Do()
+func (g *GoogleDriveClient) GetListOfOutdatedFiles() (*[]drive.File, error) {
+	outdatedBackupFiles := make([]drive.File, 0)
+	googleDateTimeLayout := "2006-01-02T15:04:05.999Z"
+
+	res, err := g.service.Files.List().Fields("files(kind, id, name, createdTime, parents, mimeType)").Do()
 	if err != nil {
 		log.Fatalf("Warning: unable to list files %v", err)
+		return &outdatedBackupFiles, err
 	}
-	log.Printf("Files %s", (res.Files))
+
+	for _, f := range res.Files {
+		// skip folders
+		if f.MimeType == "application/vnd.google-apps.folder" {
+			continue
+		}
+
+		fileCreatedTime, _ := time.Parse(googleDateTimeLayout, f.CreatedTime)
+		if err != nil {
+			log.Fatalf("error parsing date: %v", err)
+			return &outdatedBackupFiles, err
+		}
+
+		daysOutdated := int(time.Now().Sub(fileCreatedTime).Hours() / 24)
+		if daysOutdated > g.driveConfig.BackupFileRetentionDays {
+			//log.Printf("To delete %s => %.0f | %s", f.Name, daysOutdated, f.CreatedTime)
+			outdatedBackupFiles = append(outdatedBackupFiles, *f)
+		}
+	}
+	return &outdatedBackupFiles, nil
+}
+
+func (g *GoogleDriveClient) RemoveOutdatedBackups() {
+	var numOfDeletedFiles = 0
+
+	outdatedBackupFiles, err := g.GetListOfOutdatedFiles()
+	if err != nil {
+		log.Fatalf("error while getting outdated backup files %v \n", err)
+	}
+
+	var wg sync.WaitGroup
+	errorChan := make(chan error, len(*outdatedBackupFiles))
+
+	wg.Add(5)
+	for _, f := range *outdatedBackupFiles {
+		go func(f drive.File) {
+			defer wg.Done()
+			err := g.service.Files.Delete(f.Id).Do()
+			if err != nil {
+				errorChan <- err
+			} else {
+				numOfDeletedFiles = +1
+			}
+		}(f)
+	}
+	go func() {
+		wg.Wait()
+		close(errorChan)
+	}()
+
+	//for err := range errorChan {
+	//	log.Printf("error while deleting file: %v\n", err)
+	//}
+
+	log.Printf("successfully deleted %d backup files", numOfDeletedFiles)
 }
 
 func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) {

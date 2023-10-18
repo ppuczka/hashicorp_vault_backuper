@@ -4,10 +4,8 @@ import (
 	"context"
 	"github.com/spf13/viper"
 	"log"
-	"sync"
 	"vault_backup/cmd/config"
 	"vault_backup/cmd/google_drive"
-	"vault_backup/cmd/vault_service"
 )
 
 func main() {
@@ -15,32 +13,33 @@ func main() {
 	appConfig := config.GetVaultConfig(viperCnf)
 	ctx := context.Background()
 
-	vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
-	if err != nil {
-		log.Fatalf("unable to initialize vault_service connection @ %s: %w", appConfig.VaultConfig.Address, err)
-	}
+	//vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
+	//if err != nil {
+	//	log.Fatalf("unable to initialize vault_service connection @ %s: %w", appConfig.VaultConfig.Address, err)
+	//}
 
 	googleDrive, err := google_drive.GetGoogleDriveService(ctx, appConfig)
 	if err != nil {
 		log.Fatalf("unable to initialize GoogleDriveService %v", err)
 	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		vault.RenewTokenPeriodically(ctx, authToken, appConfig)
-		wg.Done()
-	}()
-
-	defer func() {
-		wg.Wait()
-	}()
-
-	backupScheduler, err := vault_service.GetBackupScheduler(vault, &appConfig, googleDrive, *authToken)
-	if err != nil {
-		log.Fatalf("unable to initialize BackupScheduler %v", err)
-	}
-	backupScheduler.CreateVaultBackups()
+	//
+	//var wg sync.WaitGroup
+	//wg.Add(1)
+	//go func() {
+	//	vault.RenewTokenPeriodically(ctx, authToken, appConfig)
+	//	wg.Done()
+	//}()
+	//
+	//defer func() {
+	//	wg.Wait()
+	//}()
+	//
+	//backupScheduler, err := vault_service.GetBackupScheduler(vault, &appConfig, googleDrive, *authToken)
+	//if err != nil {
+	//	log.Fatalf("unable to initialize BackupScheduler %v", err)
+	//}
+	//backupScheduler.CreateVaultBackups()
+	googleDrive.RemoveOutdatedBackups()
 }
 
 func viperInit(configFilePath string) (*viper.Viper, error) {

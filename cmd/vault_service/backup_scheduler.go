@@ -69,7 +69,7 @@ func (bs BackupScheduler) eventListenerBackup(events chan string) {
 func (bs BackupScheduler) scheduledTimeBackup(events chan string) {
 	s := gocron.NewScheduler(time.UTC)
 
-	_, err := s.Every(10).Hour().Do(func() {
+	_, err := s.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() {
 		log.Println("Performing scheduled backup...")
 
 		events <- "scheduled backup"
