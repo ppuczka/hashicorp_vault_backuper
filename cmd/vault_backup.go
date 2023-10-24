@@ -17,7 +17,7 @@ func main() {
 
 	vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
 	if err != nil {
-		log.Fatalf("unable to initialize vault_service connection @ %s: %w", appConfig.VaultConfig.Address, err)
+		log.Fatalf("unable to initialize vault_service connection @ %s: %v", appConfig.VaultConfig.Address, err)
 	}
 
 	gDriveJsonSecret := vault.GetGoogleDriveJsonSecret(ctx)
