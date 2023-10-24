@@ -16,8 +16,9 @@ type GoogleDriveClient struct {
 	driveConfig *config.GoogleDriveConfig
 }
 
-func GetGoogleDriveService(ctx context.Context, config config.AppConfig) (*GoogleDriveClient, error) {
-	service, err := drive.NewService(ctx, option.WithCredentialsFile(config.GoogleDriveConfig.ServiceAccountFilePath))
+func GetGoogleDriveService(ctx context.Context, config config.AppConfig, credentialsJson string) (*GoogleDriveClient, error) {
+
+	service, err := drive.NewService(ctx, option.WithCredentialsJSON([]byte(credentialsJson)))
 	if err != nil {
 		log.Fatalf("Warning: Unable to create drive Client %v", err)
 		return nil, err
@@ -73,28 +74,32 @@ func (g *GoogleDriveClient) RemoveOutdatedBackups() {
 	var wg sync.WaitGroup
 	errorChan := make(chan error, len(*outdatedBackupFiles))
 
-	wg.Add(5)
 	for _, f := range *outdatedBackupFiles {
+		wg.Add(1)
 		go func(f drive.File) {
 			defer wg.Done()
 			err := g.service.Files.Delete(f.Id).Do()
 			if err != nil {
 				errorChan <- err
 			} else {
-				numOfDeletedFiles = +1
+				numOfDeletedFiles = numOfDeletedFiles + 1
 			}
 		}(f)
+		wg.Wait()
 	}
+
 	go func() {
 		wg.Wait()
 		close(errorChan)
 	}()
 
-	//for err := range errorChan {
-	//	log.Printf("error while deleting file: %v\n", err)
-	//}
-
-	log.Printf("successfully deleted %d backup files", numOfDeletedFiles)
+	if len(errorChan) > 0 {
+		for err := range errorChan {
+			log.Printf("error while deleting file: %v\n", err)
+		}
+	} else {
+		log.Printf("successfully deleted %d backup files", numOfDeletedFiles)
+	}
 }
 
 func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) {

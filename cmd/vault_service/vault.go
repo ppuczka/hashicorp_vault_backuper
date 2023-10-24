@@ -2,6 +2,7 @@ package vault_service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	vault "github.com/hashicorp/vault/api"
 	auth "github.com/hashicorp/vault/api/auth/approle"
@@ -44,6 +45,20 @@ func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault
 	log.Println("connecting to vault_service: success!")
 
 	return v, token, nil
+}
+
+func (v *Vault) GetGoogleDriveJsonSecret(ctx context.Context) string {
+	kvSecret, err := v.client.KVv2("vault_backup").Get(ctx, "google_drive")
+	if err != nil {
+		log.Fatalf("error while getting secret from vault %v", err)
+	}
+
+	secret, err := json.Marshal(kvSecret.Data)
+	if err != nil {
+		log.Fatalf("error while creating secret string")
+	}
+
+	return string(secret)
 }
 
 func (v *Vault) login(ctx context.Context, config config.AppConfig) (*vault.Secret, error) {

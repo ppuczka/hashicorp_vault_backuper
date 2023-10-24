@@ -23,6 +23,7 @@ type BackupScheduler struct {
 	vaultConfig       *config.VaultConfig
 	googleDriveClient *google_drive.GoogleDriveClient
 	wsConnection      *websocket.Conn
+	scheduler         *gocron.Scheduler
 }
 
 func GetBackupScheduler(
@@ -49,11 +50,13 @@ func GetBackupScheduler(
 			vault:             vault,
 			vaultConfig:       &appConfig.VaultConfig,
 			googleDriveClient: googleDriveClient,
-			wsConnection:      conn},
+			wsConnection:      conn,
+			scheduler:         gocron.NewScheduler(time.UTC),
+		},
 		nil
 }
 
-func (bs BackupScheduler) eventListenerBackup(events chan string) {
+func (bs BackupScheduler) vaultEventListener(events chan string) {
 	log.Println("Connected to vault_service events. Listening...")
 	for {
 		_, message, err := bs.wsConnection.ReadMessage()
@@ -67,21 +70,27 @@ func (bs BackupScheduler) eventListenerBackup(events chan string) {
 }
 
 func (bs BackupScheduler) scheduledTimeBackup(events chan string) {
-	s := gocron.NewScheduler(time.UTC)
-
-	_, err := s.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() {
+	_, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() {
 		log.Println("Performing scheduled backup...")
-
 		events <- "scheduled backup"
 	})
+
 	if err != nil {
 		log.Fatalf("error while scheduling cron job %v", err)
 	}
-
-	s.StartBlocking()
 }
 
-func (bs BackupScheduler) onEventVaultBackup(events chan string) {
+func (bs BackupScheduler) scheduledTimeBackupCleanup() {
+	_, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() {
+		bs.googleDriveClient.RemoveOutdatedBackups()
+	})
+
+	if err != nil {
+		log.Fatalf("error while scheduling cron job %v", err)
+	}
+}
+
+func (bs BackupScheduler) onEventBackup(events chan string) {
 	for {
 		select {
 		case e := <-events:
@@ -104,9 +113,12 @@ func (bs BackupScheduler) pareJsonEvent(json string) string {
 func (bs BackupScheduler) CreateVaultBackups() {
 
 	events := make(chan string, 10)
-	go bs.eventListenerBackup(events)
-	go bs.onEventVaultBackup(events)
+	go bs.vaultEventListener(events)
+	go bs.onEventBackup(events)
 	go bs.scheduledTimeBackup(events)
+
+	bs.scheduledTimeBackupCleanup()
+	bs.scheduler.StartBlocking()
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
