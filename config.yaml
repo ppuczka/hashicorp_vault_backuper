@@ -1,0 +1,18 @@
+vault:
+  address: https://0.0.0.0:8300
+  app_role_id: 5342fee4-38d7-25cc-737f-8cc5ac7fe1eb
+  app_secret_id: paste_secret
+  listened_event_type: kv-v2/*
+
+  # enter a duration string such as "2h45m".
+  #Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+  scheduled_snapshot_interval: 12h
+
+  log_file_path: /home/azureuser/.vault/vault_backup.log
+  snapshot_folder: /home/azureuser/.vault
+  web_socket_event_base_url: wss://127.0.0.0:8300
+
+google_drive:
+  deploy_folder_id: 1gJCvUBRdry1JZISJ6MCoCEcKFncK9fZD
+  service_account_file_path: key.json
+  backup_file_retention_days: 10

@@ -44,8 +44,6 @@ func GetBackupScheduler(
 		return nil, err
 	}
 
-	defer conn.Close()
-
 	return &BackupScheduler{
 			vault:             vault,
 			vaultConfig:       &appConfig.VaultConfig,
@@ -121,6 +119,8 @@ func (bs BackupScheduler) pareJsonEvent(json string) string {
 }
 
 func (bs BackupScheduler) CreateVaultBackups() {
+
+	defer bs.wsConnection.Close()
 
 	events := make(chan string, 10)
 	go bs.vaultEventListener(events)

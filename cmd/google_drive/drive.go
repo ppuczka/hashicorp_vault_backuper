@@ -2,7 +2,6 @@ package google_drive
 
 import (
 	"context"
-	"fmt"
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 	"log"
@@ -103,7 +102,7 @@ func (g *GoogleDriveClient) RemoveOutdatedBackups() (int, error) {
 func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) (*string, error) {
 	file, err := os.Open(backupFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("DeployBackupToGoogleDrive: unable to load a file %s, %w", backupFilePath, err)
+		log.Fatalf("Warning: unable to load a file %s, %v", backupFilePath, err)
 	}
 
 	info, err := file.Stat()
