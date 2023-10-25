@@ -20,7 +20,7 @@ func GetGoogleDriveService(ctx context.Context, config config.AppConfig, credent
 
 	service, err := drive.NewService(ctx, option.WithCredentialsJSON([]byte(credentialsJson)))
 	if err != nil {
-		log.Fatalf("Warning: Unable to create drive Client %v", err)
+		ErrorLogger.logFatalf("Warning: Unable to create drive Client %v", err)
 		return nil, err
 	}
 
@@ -38,7 +38,7 @@ func (g *GoogleDriveClient) GetListOfOutdatedFiles() (*[]drive.File, error) {
 
 	res, err := g.service.Files.List().Fields("files(kind, id, name, createdTime, parents, mimeType)").Do()
 	if err != nil {
-		log.Fatalf("Warning: unable to list files %v", err)
+		ErrorLogger.logFatalf("Warning: unable to list files %v", err)
 		return &outdatedBackupFiles, err
 	}
 
@@ -50,13 +50,12 @@ func (g *GoogleDriveClient) GetListOfOutdatedFiles() (*[]drive.File, error) {
 
 		fileCreatedTime, _ := time.Parse(googleDateTimeLayout, f.CreatedTime)
 		if err != nil {
-			log.Fatalf("error parsing date: %v", err)
+			ErrorLogger.logFatalf("error parsing date: %v", err)
 			return &outdatedBackupFiles, err
 		}
 
 		daysOutdated := int(time.Now().Sub(fileCreatedTime).Hours() / 24)
 		if daysOutdated > g.driveConfig.BackupFileRetentionDays {
-			//log.Printf("To delete %s => %.0f | %s", f.Name, daysOutdated, f.CreatedTime)
 			outdatedBackupFiles = append(outdatedBackupFiles, *f)
 		}
 	}
@@ -68,7 +67,7 @@ func (g *GoogleDriveClient) RemoveOutdatedBackups() {
 
 	outdatedBackupFiles, err := g.GetListOfOutdatedFiles()
 	if err != nil {
-		log.Fatalf("error while getting outdated backup files %v \n", err)
+		ErrorLogger.logFatalf("error while getting outdated backup files %v \n", err)
 	}
 
 	var wg sync.WaitGroup
@@ -95,22 +94,24 @@ func (g *GoogleDriveClient) RemoveOutdatedBackups() {
 
 	if len(errorChan) > 0 {
 		for err := range errorChan {
-			log.Printf("error while deleting file: %v\n", err)
+			log.Printf("error while deleting file: %v \n", err)
 		}
+	} else if numOfDeletedFiles > 0 {
+		log.Printf("successfully deleted %d backup files \n", numOfDeletedFiles)
 	} else {
-		log.Printf("successfully deleted %d backup files", numOfDeletedFiles)
+		log.Println("no backup files to delete")
 	}
 }
 
 func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) {
 	file, err := os.Open(backupFilePath)
 	if err != nil {
-		log.Fatalf("Warning: unable to load a file %s, %v", backupFilePath, err)
+		ErrorLogger.logFatalf("Warning: unable to load a file %s, %v", backupFilePath, err)
 	}
 
 	info, err := file.Stat()
 	if err != nil {
-		log.Fatalf("Warning: unable to get fileInfo %s, %v", backupFilePath, err)
+		ErrorLogger.logFatalf("Warning: unable to get fileInfo %s, %v", backupFilePath, err)
 	}
 
 	defer file.Close()
@@ -128,8 +129,8 @@ func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) {
 		Do()
 
 	if err != nil {
-		log.Fatalf("Warning: unable to upload file %v", err)
+		ErrorLogger.logFatalf("Warning: unable to upload file %v", err)
 	}
 
-	log.Printf("New file id: %s\n", res.Id)
+	log.Printf("New file id: %s \n", res.Id)
 }

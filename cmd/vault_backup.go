@@ -4,45 +4,28 @@ import (
 	"context"
 	"github.com/spf13/viper"
 	"log"
+	"os"
 	"sync"
 	"vault_backup/cmd/config"
 	"vault_backup/cmd/google_drive"
 	"vault_backup/cmd/vault_service"
 )
 
-func main() {
-	viperCnf, _ := viperInit("config.yaml")
-	appConfig := config.GetVaultConfig(viperCnf)
-	ctx := context.Background()
+var (
+	WarningLogger *log.Logger
+	InfoLogger    *log.Logger
+	ErrorLogger   *log.Logger
+)
 
-	vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
+func loggerInit(logFilePath string) {
+	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		log.Fatalf("unable to initialize vault_service connection @ %s: %v", appConfig.VaultConfig.Address, err)
+		log.Fatal(err)
 	}
 
-	gDriveJsonSecret := vault.GetGoogleDriveJsonSecret(ctx)
-	googleDrive, err := google_drive.GetGoogleDriveService(ctx, appConfig, gDriveJsonSecret)
-	if err != nil {
-		log.Fatalf("unable to initialize GoogleDriveService %v", err)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		vault.RenewTokenPeriodically(ctx, authToken, appConfig)
-		wg.Done()
-	}()
-
-	defer func() {
-		wg.Wait()
-	}()
-
-	backupScheduler, err := vault_service.GetBackupScheduler(vault, &appConfig, googleDrive, *authToken)
-	if err != nil {
-		log.Fatalf("unable to initialize BackupScheduler %v", err)
-	}
-	backupScheduler.CreateVaultBackups()
-	googleDrive.RemoveOutdatedBackups()
+	InfoLogger = log.New(file, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	WarningLogger = log.New(file, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
+	ErrorLogger = log.New(file, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
 func viperInit(configFilePath string) (*viper.Viper, error) {
@@ -64,4 +47,41 @@ func viperInit(configFilePath string) (*viper.Viper, error) {
 	}
 
 	return viper.GetViper(), nil
+}
+
+func main() {
+	viperCnf, _ := viperInit("config.yaml")
+	appConfig := config.GetVaultConfig(viperCnf)
+	ctx := context.Background()
+
+	loggerInit(appConfig.VaultConfig.LogFilePath)
+
+	vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
+	if err != nil {
+		ErrorLogger.Fatalf("unable to initialize vault_service connection @ %s: %v", appConfig.VaultConfig.Address, err)
+	}
+
+	gDriveJsonSecret := vault.GetGoogleDriveJsonSecret(ctx)
+	googleDrive, err := google_drive.GetGoogleDriveService(ctx, appConfig, gDriveJsonSecret)
+	if err != nil {
+		ErrorLogger.Fatalf("unable to initialize GoogleDriveService %v", err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		vault.RenewTokenPeriodically(ctx, authToken, appConfig)
+		wg.Done()
+	}()
+
+	defer func() {
+		wg.Wait()
+	}()
+
+	backupScheduler, err := vault_service.GetBackupScheduler(vault, &appConfig, googleDrive, *authToken)
+	if err != nil {
+		ErrorLogger.Fatalf("unable to initialize BackupScheduler %v", err)
+	}
+	backupScheduler.CreateVaultBackups()
+	googleDrive.RemoveOutdatedBackups()
 }

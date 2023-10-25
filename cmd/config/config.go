@@ -23,6 +23,7 @@ type VaultConfig struct {
 	ListenedEventsType        string
 	ScheduledSnapshotInterval string
 	SnapshotFolder            string
+	LogFilePath               string
 }
 
 type GoogleDriveConfig struct {
@@ -48,6 +49,7 @@ func GetVaultConfig(viper *viper.Viper) AppConfig {
 	appConfig.VaultConfig.ListenedEventsType = viper.GetString("vault.listened_event_type")
 	appConfig.VaultConfig.ScheduledSnapshotInterval = viper.GetString("vault.scheduled_snapshot_interval")
 	appConfig.VaultConfig.SnapshotFolder = viper.GetString("vault.snapshot_folder")
+	appConfig.VaultConfig.LogFilePath = viper.GetString("vault.log_file_path")
 
 	appConfig.GoogleDriveConfig.ServiceAccountFilePath = viper.GetString("google_drive.service_account_file_path")
 	appConfig.GoogleDriveConfig.DeployFolderId = viper.GetString("google_drive.deploy_folder_id")
