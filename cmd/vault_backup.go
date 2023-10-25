@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/spf13/viper"
 	"log"
 	"sync"
@@ -42,7 +44,6 @@ func main() {
 		log.Fatalf("unable to initialize BackupScheduler %v", err)
 	}
 	backupScheduler.CreateVaultBackups()
-	googleDrive.RemoveOutdatedBackups()
 }
 
 func viperInit(configFilePath string) (*viper.Viper, error) {
@@ -52,15 +53,14 @@ func viperInit(configFilePath string) (*viper.Viper, error) {
 	viper.SetConfigType("yaml")
 
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// Config file not found; ignore error if desired
-		} else {
-			// Config file was found but another error was produced
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			return nil, fmt.Errorf("viperInit: %w", err)
 		}
 	}
 	err := viper.ReadInConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("viperInit: %w", err)
 	}
 
 	return viper.GetViper(), nil

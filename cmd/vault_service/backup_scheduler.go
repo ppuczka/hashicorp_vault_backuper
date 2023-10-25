@@ -81,12 +81,18 @@ func (bs BackupScheduler) scheduledTimeBackup(events chan string) {
 }
 
 func (bs BackupScheduler) scheduledTimeBackupCleanup() {
-	_, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() {
-		bs.googleDriveClient.RemoveOutdatedBackups()
+	deletedFilesNumber, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() (int, error) {
+		deletedFilesNumber, err := bs.googleDriveClient.RemoveOutdatedBackups()
+		if err != nil {
+			return 0, fmt.Errorf("scheduledTimeBackupCleanup: error when removinig outdated backups %w", err)
+		}
+		return deletedFilesNumber, nil
 	})
 
 	if err != nil {
-		log.Fatalf("error while scheduling cron job %v", err)
+		log.Printf("error while scheduling cron job %v", err)
+	} else {
+		log.Printf("successfully deleted %d backup files", deletedFilesNumber)
 	}
 }
 
@@ -101,7 +107,11 @@ func (bs BackupScheduler) onEventBackup(events chan string) {
 			backupFile, _ := bs.vault.RaftSnapshot(filePath)
 			log.Printf("Backup %s created succesfully \n", backupFile.Name())
 
-			bs.googleDriveClient.DeployBackupToGoogleDrive(filePath)
+			fileId, err := bs.googleDriveClient.DeployBackupToGoogleDrive(filePath)
+			if err != nil {
+				log.Printf("onEventBackup: error while deploying backup to Google Drive %v \n", err)
+			}
+			log.Printf("New file id: %d\n", fileId)
 		}
 	}
 }
