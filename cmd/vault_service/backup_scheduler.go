@@ -79,18 +79,17 @@ func (bs BackupScheduler) scheduledTimeBackup(events chan string) {
 }
 
 func (bs BackupScheduler) scheduledTimeBackupCleanup() {
-	deletedFilesNumber, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() (int, error) {
+	_, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() error {
 		deletedFilesNumber, err := bs.googleDriveClient.RemoveOutdatedBackups()
 		if err != nil {
-			return 0, fmt.Errorf("scheduledTimeBackupCleanup: error when removinig outdated backups %w", err)
+			return fmt.Errorf("scheduledTimeBackupCleanup: error when removinig outdated backups %w", err)
 		}
-		return deletedFilesNumber, nil
+		log.Printf("scheduledTimeBackupCleanup: successfully deleted %d backup files\n", deletedFilesNumber)
+		return nil
 	})
 
 	if err != nil {
 		log.Printf("error while scheduling cron job %v", err)
-	} else {
-		log.Printf("successfully deleted %d backup files", deletedFilesNumber)
 	}
 }
 

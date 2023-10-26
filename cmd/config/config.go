@@ -51,7 +51,6 @@ func GetVaultConfig(viper *viper.Viper) AppConfig {
 	appConfig.VaultConfig.SnapshotFolder = viper.GetString("vault.snapshot_folder")
 	appConfig.VaultConfig.LogFilePath = viper.GetString("vault.log_file_path")
 
-	appConfig.GoogleDriveConfig.ServiceAccountFilePath = viper.GetString("google_drive.service_account_file_path")
 	appConfig.GoogleDriveConfig.DeployFolderId = viper.GetString("google_drive.deploy_folder_id")
 	appConfig.GoogleDriveConfig.BackupFileRetentionDays = viper.GetInt("google_drive.backup_file_retention_days")
 
