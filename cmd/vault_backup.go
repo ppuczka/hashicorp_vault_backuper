@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"vault_backup/cmd/config"
 	"vault_backup/cmd/google_drive"
@@ -13,9 +17,28 @@ import (
 )
 
 func main() {
-	viperCnf, _ := viperInit("config.yaml")
+
+	flag.String("config", "", "path to the yaml config file")
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
+
+	configFilePath, err := pflag.CommandLine.GetString("config")
+	if err != nil {
+		log.Fatalf("error while parsing run parameters")
+	}
+
+	viperCnf, err := viperInit(configFilePath)
+	if err != nil {
+		log.Fatalf("error while loading config file %s, %v", configFilePath, err)
+	}
 	appConfig := config.GetVaultConfig(viperCnf)
 	ctx := context.Background()
+
+	logFile, err := os.OpenFile(appConfig.VaultConfig.LogFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalf("main: error while creating log file %s, %v \n", appConfig.VaultConfig.LogFilePath, err)
+	}
+	log.SetOutput(logFile)
 
 	vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
 	if err != nil {
@@ -47,11 +70,9 @@ func main() {
 }
 
 func viperInit(configFilePath string) (*viper.Viper, error) {
-	viper.AddConfigPath(configFilePath)
-	viper.AddConfigPath("$HOME/.vault_backup")
-	viper.AddConfigPath(".")
-	viper.SetConfigType("yaml")
-
+	cwd, _ := os.Getwd()
+	cnf := filepath.Join(cwd, configFilePath)
+	viper.SetConfigFile(cnf)
 	if err := viper.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if errors.As(err, &configFileNotFoundError) {

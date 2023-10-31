@@ -100,10 +100,10 @@ func (g *GoogleDriveClient) RemoveOutdatedBackups() (int, error) {
 	return numOfDeletedFiles, nil
 }
 
-func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) (*string, error) {
+func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath, googleDriveFolderId string) (*string, error) {
 	file, err := os.Open(backupFilePath)
 	if err != nil {
-		log.Fatalf("Warning: unable to load a file %s, %v", backupFilePath, err)
+		log.Fatalf("DeployBackupToGoogleDrive: unable to load a file %s, %v", backupFilePath, err)
 	}
 
 	info, err := file.Stat()
@@ -115,7 +115,7 @@ func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath string) (*s
 
 	fileMetadata := &drive.File{
 		Name:    info.Name(),
-		Parents: []string{g.driveConfig.DeployFolderId},
+		Parents: []string{g.driveConfig.OnEventDeployFolderId},
 	}
 
 	res, err := g.service.Files.

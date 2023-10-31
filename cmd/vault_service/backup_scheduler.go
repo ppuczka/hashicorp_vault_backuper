@@ -5,7 +5,6 @@ import (
 	"github.com/go-co-op/gocron"
 	"github.com/gorilla/websocket"
 	vault "github.com/hashicorp/vault/api"
-	"github.com/tidwall/gjson"
 	"log"
 	"net/http"
 	"os"
@@ -18,9 +17,31 @@ import (
 
 const vaultWebsocketPath = "v1/sys/events/subscribe"
 
+type Event int64
+
+const (
+	VaultEvent Event = iota
+	ScheduledEvent
+)
+
+func (e Event) String() string {
+	switch e {
+	case VaultEvent:
+		return "vault event"
+	case ScheduledEvent:
+		return "scheduled event"
+	}
+	return "unknown"
+}
+
+type BackupType struct {
+	eventType    Event
+	gDriveFileId string
+}
+
 type BackupScheduler struct {
 	vault             *Vault
-	vaultConfig       *config.VaultConfig
+	appConfig         *config.AppConfig
 	googleDriveClient *google_drive.GoogleDriveClient
 	wsConnection      *websocket.Conn
 	scheduler         *gocron.Scheduler
@@ -38,15 +59,16 @@ func GetBackupScheduler(
 		appConfig.VaultConfig.ListenedEventsType)
 
 	wsHeader := http.Header{"X-Vault-Token": []string{token.Auth.ClientToken}}
+	wsDialer := websocket.DefaultDialer
 
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, wsHeader)
+	conn, _, err := wsDialer.Dial(wsURL, wsHeader)
 	if err != nil {
 		return nil, err
 	}
 
 	return &BackupScheduler{
 			vault:             vault,
-			vaultConfig:       &appConfig.VaultConfig,
+			appConfig:         appConfig,
 			googleDriveClient: googleDriveClient,
 			wsConnection:      conn,
 			scheduler:         gocron.NewScheduler(time.UTC),
@@ -54,23 +76,23 @@ func GetBackupScheduler(
 		nil
 }
 
-func (bs BackupScheduler) vaultEventListener(events chan string) {
+func (bs BackupScheduler) vaultEventListener(events chan BackupType) {
 	log.Println("Connected to vault_service events. Listening...")
 	for {
-		_, message, err := bs.wsConnection.ReadMessage()
+		_, _, err := bs.wsConnection.ReadMessage()
 		if err != nil {
 			log.Printf("WebSocket read error: %v", err)
 			break
 		}
-		eventType := bs.pareJsonEvent(string(message))
+		eventType := BackupType{VaultEvent, bs.appConfig.GoogleDriveConfig.OnEventDeployFolderId}
 		events <- eventType
 	}
 }
 
-func (bs BackupScheduler) scheduledTimeBackup(events chan string) {
-	_, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() {
+func (bs BackupScheduler) scheduledTimeBackup(events chan BackupType) {
+	_, err := bs.scheduler.Every(bs.appConfig.VaultConfig.ScheduledSnapshotInterval).Do(func() {
 		log.Println("Performing scheduled backup...")
-		events <- "scheduled backup"
+		events <- BackupType{ScheduledEvent, bs.appConfig.GoogleDriveConfig.ScheduledDeployFolderId}
 	})
 
 	if err != nil {
@@ -79,7 +101,7 @@ func (bs BackupScheduler) scheduledTimeBackup(events chan string) {
 }
 
 func (bs BackupScheduler) scheduledTimeBackupCleanup() {
-	_, err := bs.scheduler.Every(bs.vaultConfig.ScheduledSnapshotInterval).Do(func() error {
+	_, err := bs.scheduler.Every(bs.appConfig.VaultConfig.ScheduledSnapshotInterval).Do(func() error {
 		deletedFilesNumber, err := bs.googleDriveClient.RemoveOutdatedBackups()
 		if err != nil {
 			return fmt.Errorf("scheduledTimeBackupCleanup: error when removinig outdated backups %w", err)
@@ -93,18 +115,18 @@ func (bs BackupScheduler) scheduledTimeBackupCleanup() {
 	}
 }
 
-func (bs BackupScheduler) onEventBackup(events chan string) {
+func (bs BackupScheduler) onEventBackup(events chan BackupType) {
 	for {
 		select {
 		case e := <-events:
 			nowTimestamp := time.Now().Unix()
 
-			log.Printf("Event %s recived. Performing backup...", e)
-			filePath := filepath.Join(bs.vaultConfig.SnapshotFolder, fmt.Sprintf("%d.snap", nowTimestamp))
+			log.Printf("Event %s recived. Performing backup...", e.eventType)
+			filePath := filepath.Join(bs.appConfig.VaultConfig.SnapshotFolder, fmt.Sprintf("%d.snap", nowTimestamp))
 			backupFile, _ := bs.vault.RaftSnapshot(filePath)
 			log.Printf("Backup %s created succesfully \n", backupFile.Name())
 
-			fileId, err := bs.googleDriveClient.DeployBackupToGoogleDrive(filePath)
+			fileId, err := bs.googleDriveClient.DeployBackupToGoogleDrive(filePath, e.gDriveFileId)
 			if err != nil {
 				log.Printf("onEventBackup: error while deploying backup to Google Drive %v \n", err)
 			}
@@ -113,15 +135,11 @@ func (bs BackupScheduler) onEventBackup(events chan string) {
 	}
 }
 
-func (bs BackupScheduler) pareJsonEvent(json string) string {
-	return gjson.Get(json, "data.event_type").String()
-}
-
 func (bs BackupScheduler) CreateVaultBackups() {
 
 	defer bs.wsConnection.Close()
 
-	events := make(chan string, 10)
+	events := make(chan BackupType, 10)
 	go bs.vaultEventListener(events)
 	go bs.onEventBackup(events)
 	go bs.scheduledTimeBackup(events)

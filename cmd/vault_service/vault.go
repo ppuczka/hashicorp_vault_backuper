@@ -48,7 +48,7 @@ func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault
 }
 
 func (v *Vault) GetGoogleDriveJsonSecret(ctx context.Context) string {
-	kvSecret, err := v.client.KVv2("google_drive").Get(ctx, "drive")
+	kvSecret, err := v.client.KVv2("google_drive").Get(ctx, "service_account")
 	if err != nil {
 		log.Fatalf("error while getting secret from vault %v", err)
 	}
