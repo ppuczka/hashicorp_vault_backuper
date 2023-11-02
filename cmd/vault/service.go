@@ -1,4 +1,4 @@
-package vault_service
+package vault
 
 import (
 	"context"
@@ -39,10 +39,10 @@ func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault
 
 	token, err := v.login(ctx, config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("vault_service login error: %w", err)
+		return nil, nil, fmt.Errorf("vault login error: %w", err)
 	}
 
-	log.Println("connecting to vault_service: success!")
+	log.Println("connecting to vault: success!")
 
 	return v, token, nil
 }

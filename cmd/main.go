@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"sync"
 	"vault_backup/cmd/config"
-	"vault_backup/cmd/google_drive"
-	"vault_backup/cmd/vault_service"
+	"vault_backup/cmd/google"
+	"vault_backup/cmd/vault"
 )
 
 func main() {
@@ -38,15 +38,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("main: error while creating log file %s, %v \n", appConfig.VaultConfig.LogFilePath, err)
 	}
-	log.SetOutput(logFile)
+	log.Printf("%s", logFile)
+	//log.SetOutput(logFile)
 
-	vault, authToken, err := vault_service.GetVaultAppRoleClient(ctx, appConfig)
+	v, authToken, err := vault.GetVaultAppRoleClient(ctx, appConfig)
 	if err != nil {
-		log.Fatalf("unable to initialize vault_service connection @ %s: %v", appConfig.VaultConfig.Address, err)
+		log.Fatalf("unable to initialize v connection @ %s: %v", appConfig.VaultConfig.Address, err)
 	}
 
-	gDriveJsonSecret := vault.GetGoogleDriveJsonSecret(ctx)
-	googleDrive, err := google_drive.GetGoogleDriveService(ctx, appConfig, gDriveJsonSecret)
+	gDriveJsonSecret := v.GetGoogleDriveJsonSecret(ctx)
+	googleDrive, err := google.GetGoogleDriveClient(ctx, appConfig, gDriveJsonSecret)
 	if err != nil {
 		log.Fatalf("unable to initialize GoogleDriveService %v", err)
 	}
@@ -54,15 +55,14 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		vault.RenewTokenPeriodically(ctx, authToken, appConfig)
+		v.RenewTokenPeriodically(ctx, authToken, appConfig)
 		wg.Done()
 	}()
 
 	defer func() {
 		wg.Wait()
 	}()
-
-	backupScheduler, err := vault_service.GetBackupScheduler(vault, &appConfig, googleDrive, *authToken)
+	backupScheduler, err := vault.GetBackupScheduler(v, &appConfig, googleDrive, *authToken)
 	if err != nil {
 		log.Fatalf("unable to initialize BackupScheduler %v", err)
 	}
@@ -71,7 +71,10 @@ func main() {
 
 func viperInit(configFilePath string) (*viper.Viper, error) {
 	cwd, _ := os.Getwd()
+	log.Printf("current working directory %s", cwd)
+	log.Printf("current working directory %s", configFilePath)
 	cnf := filepath.Join(cwd, configFilePath)
+	log.Printf("current working directory %s", cnf)
 	viper.SetConfigFile(cnf)
 	if err := viper.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError

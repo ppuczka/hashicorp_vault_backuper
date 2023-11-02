@@ -1,4 +1,4 @@
-package google_drive
+package google
 
 import (
 	"context"
@@ -12,19 +12,19 @@ import (
 	"vault_backup/cmd/config"
 )
 
-type GoogleDriveClient struct {
+type DriveClient struct {
 	service     *drive.Service
 	driveConfig *config.GoogleDriveConfig
 }
 
-func GetGoogleDriveService(ctx context.Context, config config.AppConfig, credentialsJson string) (*GoogleDriveClient, error) {
+func GetGoogleDriveClient(ctx context.Context, config config.AppConfig, credentialsJson string) (*DriveClient, error) {
 
 	service, err := drive.NewService(ctx, option.WithCredentialsJSON([]byte(credentialsJson)))
 	if err != nil {
-		return nil, fmt.Errorf("GetGoogleDriveService: Unable to create drive Client %w", err)
+		return nil, fmt.Errorf("GetGoogleDriveClient: Unable to create drive Client %w", err)
 	}
 
-	gd := GoogleDriveClient{
+	gd := DriveClient{
 		service:     service,
 		driveConfig: &config.GoogleDriveConfig,
 	}
@@ -32,7 +32,7 @@ func GetGoogleDriveService(ctx context.Context, config config.AppConfig, credent
 	return &gd, nil
 }
 
-func (g *GoogleDriveClient) GetListOfOutdatedFiles() (*[]drive.File, error) {
+func (g *DriveClient) GetListOfOutdatedFiles() (*[]drive.File, error) {
 	outdatedBackupFiles := make([]drive.File, 0)
 	googleDateTimeLayout := "2006-01-02T15:04:05.999Z"
 
@@ -61,7 +61,7 @@ func (g *GoogleDriveClient) GetListOfOutdatedFiles() (*[]drive.File, error) {
 	return &outdatedBackupFiles, nil
 }
 
-func (g *GoogleDriveClient) RemoveOutdatedBackups() (int, error) {
+func (g *DriveClient) RemoveOutdatedBackups() (int, error) {
 	var numOfDeletedFiles = 0
 
 	outdatedBackupFiles, err := g.GetListOfOutdatedFiles()
@@ -100,7 +100,7 @@ func (g *GoogleDriveClient) RemoveOutdatedBackups() (int, error) {
 	return numOfDeletedFiles, nil
 }
 
-func (g *GoogleDriveClient) DeployBackupToGoogleDrive(backupFilePath, googleDriveFolderId string) (*string, error) {
+func (g *DriveClient) DeployBackupToGoogleDrive(backupFilePath, googleDriveFolderId string) (*string, error) {
 	file, err := os.Open(backupFilePath)
 	if err != nil {
 		log.Fatalf("DeployBackupToGoogleDrive: unable to load a file %s, %v", backupFilePath, err)

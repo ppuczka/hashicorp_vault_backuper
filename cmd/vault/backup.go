@@ -1,4 +1,4 @@
-package vault_service
+package vault
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 	"vault_backup/cmd/config"
-	"vault_backup/cmd/google_drive"
+	"vault_backup/cmd/google"
 )
 
 const vaultWebsocketPath = "v1/sys/events/subscribe"
@@ -20,13 +20,13 @@ const vaultWebsocketPath = "v1/sys/events/subscribe"
 type Event int64
 
 const (
-	VaultEvent Event = iota
+	WssEvent Event = iota
 	ScheduledEvent
 )
 
 func (e Event) String() string {
 	switch e {
-	case VaultEvent:
+	case WssEvent:
 		return "vault event"
 	case ScheduledEvent:
 		return "scheduled event"
@@ -42,7 +42,7 @@ type BackupType struct {
 type BackupScheduler struct {
 	vault             *Vault
 	appConfig         *config.AppConfig
-	googleDriveClient *google_drive.GoogleDriveClient
+	googleDriveClient *google.DriveClient
 	wsConnection      *websocket.Conn
 	scheduler         *gocron.Scheduler
 }
@@ -50,7 +50,7 @@ type BackupScheduler struct {
 func GetBackupScheduler(
 	vault *Vault,
 	appConfig *config.AppConfig,
-	googleDriveClient *google_drive.GoogleDriveClient,
+	googleDriveClient *google.DriveClient,
 	token vault.Secret) (*BackupScheduler, error) {
 
 	wsURL := fmt.Sprintf("%s/%s/%s?json=true",
@@ -77,14 +77,14 @@ func GetBackupScheduler(
 }
 
 func (bs BackupScheduler) vaultEventListener(events chan BackupType) {
-	log.Println("Connected to vault_service events. Listening...")
+	log.Println("Connected to vault events. Listening...")
 	for {
 		_, _, err := bs.wsConnection.ReadMessage()
 		if err != nil {
 			log.Printf("WebSocket read error: %v", err)
 			break
 		}
-		eventType := BackupType{VaultEvent, bs.appConfig.GoogleDriveConfig.OnEventDeployFolderId}
+		eventType := BackupType{WssEvent, bs.appConfig.GoogleDriveConfig.OnEventDeployFolderId}
 		events <- eventType
 	}
 }

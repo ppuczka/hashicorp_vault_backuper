@@ -1,18 +1,17 @@
 vault:
-  address: https://0.0.0.0:8300
-  app_role_id: 5342fee4-38d7-25cc-737f-8cc5ac7fe1eb
-  app_secret_id: paste_secret
+  address: https://hash.navarra-lab.com
+  app_role_id: ad1f3e75-cf35-0200-c2c2-596e648c87bc
   listened_event_type: kv-v2/*
 
   # enter a duration string such as "2h45m".
   #Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
   scheduled_snapshot_interval: 12h
 
-  log_file_path: /home/azureuser/.vault/vault_backup.log
-  snapshot_folder: /home/azureuser/.vault
-  web_socket_event_base_url: wss://127.0.0.0:8300
+  log_file_path: vault_backup.log
+  snapshot_folder: /home/navarra/vault/backups
+  web_socket_event_base_url: wss://hash.navarra-lab.com:8400
 
 google_drive:
-  deploy_folder_id: 1gJCvUBRdry1JZISJ6MCoCEcKFncK9fZD
-  service_account_file_path: key.json
-  backup_file_retention_days: 10
+  on_event_deploy_folder_id: 1-LAQ9Vy2OtCPq4VvqfZqTWRE085G8ie8
+  scheduled_deploy_folder_id: 1WPGap6G_7scjpdJLB7BSb4uH7vJyyVer
+  backup_file_retention_days: 30
