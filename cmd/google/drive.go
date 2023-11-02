@@ -115,7 +115,7 @@ func (g *DriveClient) DeployBackupToGoogleDrive(backupFilePath, googleDriveFolde
 
 	fileMetadata := &drive.File{
 		Name:    info.Name(),
-		Parents: []string{g.driveConfig.OnEventDeployFolderId},
+		Parents: []string{googleDriveFolderId},
 	}
 
 	res, err := g.service.Files.
