@@ -1,8 +1,7 @@
-package vault
+package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	vault "github.com/hashicorp/vault/api"
 	auth "github.com/hashicorp/vault/api/auth/approle"
@@ -26,11 +25,11 @@ const (
 func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault, *vault.Secret, error) {
 	client, err := vault.NewClient(&vault.Config{Address: config.VaultConfig.Address})
 	if err != nil {
-		log.Fatalf("unable to initialize Vault client: %v", err)
+		log.Fatalf("GetVaultAppRoleClient: unable to initialize Vault client: %v", err)
 	}
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to initialize AppRole auth method: %w", err)
+		return nil, nil, fmt.Errorf("GetVaultAppRoleClient: unable to initialize AppRole auth method: %w", err)
 	}
 
 	v := &Vault{
@@ -39,26 +38,21 @@ func GetVaultAppRoleClient(ctx context.Context, config config.AppConfig) (*Vault
 
 	token, err := v.login(ctx, config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("vault login error: %w", err)
+		return nil, nil, fmt.Errorf("GetVaultAppRoleClient: Vault login error: %w", err)
 	}
 
-	log.Println("connecting to vault: success!")
+	log.Println("connecting to Vault: success!")
 
 	return v, token, nil
 }
 
-func (v *Vault) GetGoogleDriveJsonSecret(ctx context.Context) string {
-	kvSecret, err := v.client.KVv2("google_drive").Get(ctx, "service_account")
+func (v *Vault) GetKVSecret(ctx context.Context, mountPath, secretPath string) (*vault.KVSecret, error) {
+	kvSecret, err := v.client.KVv2(mountPath).Get(ctx, secretPath)
 	if err != nil {
-		log.Fatalf("error while getting secret from vault %v", err)
+		return nil, fmt.Errorf("GetKVSecret: error while getting secret from vault %w", err)
 	}
 
-	secret, err := json.Marshal(kvSecret.Data)
-	if err != nil {
-		log.Fatalf("error while creating secret string")
-	}
-
-	return string(secret)
+	return kvSecret, nil
 }
 
 func (v *Vault) login(ctx context.Context, config config.AppConfig) (*vault.Secret, error) {
@@ -75,7 +69,7 @@ func (v *Vault) login(ctx context.Context, config config.AppConfig) (*vault.Secr
 	}
 
 	if authInfo == nil {
-		return nil, fmt.Errorf("no auth info was returned after login")
+		return nil, fmt.Errorf("login: no auth info was returned after login")
 	}
 
 	return authInfo, nil

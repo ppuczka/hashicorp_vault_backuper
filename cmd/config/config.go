@@ -24,6 +24,10 @@ type VaultConfig struct {
 	ScheduledSnapshotInterval string
 	SnapshotFolder            string
 	LogFilePath               string
+	EmailHost                 string
+	EmailHostPort             string
+	Mailbox                   string
+	NotifyEmails              []string
 }
 
 type GoogleDriveConfig struct {
@@ -51,12 +55,16 @@ func GetVaultConfig(viper *viper.Viper) AppConfig {
 	appConfig.VaultConfig.ScheduledSnapshotInterval = viper.GetString("vault.scheduled_snapshot_interval")
 	appConfig.VaultConfig.SnapshotFolder = viper.GetString("vault.snapshot_folder")
 	appConfig.VaultConfig.LogFilePath = viper.GetString("vault.log_file_path")
+	appConfig.VaultConfig.NotifyEmails = viper.GetStringSlice("vault.notify_email_addresses")
+	appConfig.VaultConfig.EmailHost = viper.GetString("vault.email_host")
+	appConfig.VaultConfig.EmailHostPort = viper.GetString("vault.email_host_port")
+	appConfig.VaultConfig.Mailbox = viper.GetString("vault.mailbox")
+
+	appConfig.VaultConfig.AppSecretId = os.Getenv("APPROLE_SECRET_ID")
 
 	appConfig.GoogleDriveConfig.OnEventDeployFolderId = viper.GetString("google.on_event_deploy_folder_id")
 	appConfig.GoogleDriveConfig.ScheduledDeployFolderId = viper.GetString("google.scheduled_deploy_folder_id")
 	appConfig.GoogleDriveConfig.BackupFileRetentionDays = viper.GetInt("google.backup_file_retention_days")
-
-	appConfig.VaultConfig.AppSecretId = os.Getenv("APPROLE_SECRET_ID")
 
 	return appConfig
 }

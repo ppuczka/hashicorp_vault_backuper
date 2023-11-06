@@ -1,4 +1,4 @@
-package vault
+package services
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ const (
 func (e Event) String() string {
 	switch e {
 	case WssEvent:
-		return "vault event"
+		return "services event"
 	case ScheduledEvent:
 		return "scheduled event"
 	}
@@ -45,12 +45,14 @@ type BackupScheduler struct {
 	googleDriveClient *google.DriveClient
 	wsConnection      *websocket.Conn
 	scheduler         *gocron.Scheduler
+	notifier          *EmailNotifier
 }
 
 func GetBackupScheduler(
 	vault *Vault,
 	appConfig *config.AppConfig,
 	googleDriveClient *google.DriveClient,
+	emailNotifier *EmailNotifier,
 	token vault.Secret) (*BackupScheduler, error) {
 
 	wsURL := fmt.Sprintf("%s/%s/%s?json=true",
@@ -72,6 +74,7 @@ func GetBackupScheduler(
 			googleDriveClient: googleDriveClient,
 			wsConnection:      conn,
 			scheduler:         gocron.NewScheduler(time.UTC),
+			notifier:          emailNotifier,
 		},
 		nil
 }
@@ -128,9 +131,20 @@ func (bs BackupScheduler) onEventBackup(events chan BackupType) {
 
 			fileId, err := bs.googleDriveClient.DeployBackupToGoogleDrive(filePath, e.gDriveFileId)
 			if err != nil {
-				log.Printf("onEventBackup: error while deploying backup to Google Drive %v \n", err)
+				backupErrorEmailSubject := fmt.Sprintf("%s error while uploading backup", bs.appConfig.AppName)
+				backupErrorEmailMessage := fmt.Sprintf("Hello \n This email was sent from %s. "+
+					"There was an error while uploading backup to Google Drive: %s", bs.appConfig.AppName, err)
+
+				log.Printf("onEventBackup: error while uploading backup to Google Drive %v \n", err)
+				log.Printf("onEventBackup: noify by email \n")
+				bs.notifier.SendEmail(
+					bs.appConfig.VaultConfig.NotifyEmails,
+					backupErrorEmailSubject,
+					backupErrorEmailMessage,
+					bs.appConfig.VaultConfig.Mailbox)
+			} else {
+				log.Printf("New file id: %d\n", fileId)
 			}
-			log.Printf("New file id: %d\n", fileId)
 		}
 	}
 }

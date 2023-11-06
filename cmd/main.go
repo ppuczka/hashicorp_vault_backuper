@@ -13,10 +13,11 @@ import (
 	"sync"
 	"vault_backup/cmd/config"
 	"vault_backup/cmd/google"
-	"vault_backup/cmd/vault"
+	"vault_backup/cmd/services"
 )
 
 func main() {
+	ctx := context.Background()
 
 	flag.String("config", "", "path to the yaml config file")
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
@@ -24,30 +25,33 @@ func main() {
 
 	configFilePath, err := pflag.CommandLine.GetString("config")
 	if err != nil {
-		log.Fatalf("error while parsing run parameters")
+		log.Fatalf("main: error while parsing run parameters")
 	}
 
 	viperCnf, err := viperInit(configFilePath)
 	if err != nil {
-		log.Fatalf("error while loading config file %s, %v", configFilePath, err)
+		log.Fatalf("main: error while loading config file %s, %v", configFilePath, err)
 	}
+
 	appConfig := config.GetVaultConfig(viperCnf)
-	ctx := context.Background()
 
 	logFile, err := os.OpenFile(appConfig.VaultConfig.LogFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		log.Fatalf("main: error while creating log file %s, %v \n", appConfig.VaultConfig.LogFilePath, err)
 	}
-	log.Printf("%s", logFile)
-	//log.SetOutput(logFile)
+	log.SetOutput(logFile)
 
-	v, authToken, err := vault.GetVaultAppRoleClient(ctx, appConfig)
+	v, authToken, err := services.GetVaultAppRoleClient(ctx, appConfig)
 	if err != nil {
-		log.Fatalf("unable to initialize v connection @ %s: %v", appConfig.VaultConfig.Address, err)
+		log.Fatalf("unable to initialize v connection %s: %v", appConfig.VaultConfig.Address, err)
 	}
 
-	gDriveJsonSecret := v.GetGoogleDriveJsonSecret(ctx)
-	googleDrive, err := google.GetGoogleDriveClient(ctx, appConfig, gDriveJsonSecret)
+	gDriveJsonSecret, err := v.GetKVSecret(ctx, "google_drive", "service_account")
+	if err != nil {
+		log.Fatalf("unable to obtain GoogleDrive json secret from valt %v", err)
+	}
+
+	googleDrive, err := google.GetGoogleDriveClient(ctx, appConfig, *gDriveJsonSecret)
 	if err != nil {
 		log.Fatalf("unable to initialize GoogleDriveService %v", err)
 	}
@@ -62,7 +66,23 @@ func main() {
 	defer func() {
 		wg.Wait()
 	}()
-	backupScheduler, err := vault.GetBackupScheduler(v, &appConfig, googleDrive, *authToken)
+
+	emailNotifierSecret, err := v.GetKVSecret(ctx, "navarra-lab.com", "email/bucket")
+	if err != nil {
+		log.Fatalf("unable to obtain GoogleDrive json secret from valt %v", err)
+	}
+
+	emailNotifier, err := services.GetEmailNotifier(
+		emailNotifierSecret.Data["login"].(string),
+		emailNotifierSecret.Data["pass"].(string),
+		appConfig.VaultConfig.EmailHost,
+		appConfig.VaultConfig.EmailHostPort,
+		appConfig.VaultConfig.Mailbox)
+	if err != nil {
+		log.Fatalf("unable to initialize EmailNotifier %v", err)
+	}
+
+	backupScheduler, err := services.GetBackupScheduler(v, &appConfig, googleDrive, &emailNotifier, *authToken)
 	if err != nil {
 		log.Fatalf("unable to initialize BackupScheduler %v", err)
 	}

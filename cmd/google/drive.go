@@ -2,7 +2,9 @@ package google
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	vault "github.com/hashicorp/vault/api"
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 	"log"
@@ -17,9 +19,13 @@ type DriveClient struct {
 	driveConfig *config.GoogleDriveConfig
 }
 
-func GetGoogleDriveClient(ctx context.Context, config config.AppConfig, credentialsJson string) (*DriveClient, error) {
+func GetGoogleDriveClient(ctx context.Context, config config.AppConfig, kvSecret vault.KVSecret) (*DriveClient, error) {
+	secret, err := json.Marshal(kvSecret.Data)
+	if err != nil {
+		return nil, fmt.Errorf("GetKVSecret: error while creating secret string %w", err)
+	}
 
-	service, err := drive.NewService(ctx, option.WithCredentialsJSON([]byte(credentialsJson)))
+	service, err := drive.NewService(ctx, option.WithCredentialsJSON(secret))
 	if err != nil {
 		return nil, fmt.Errorf("GetGoogleDriveClient: Unable to create drive Client %w", err)
 	}
@@ -113,6 +119,7 @@ func (g *DriveClient) DeployBackupToGoogleDrive(backupFilePath, googleDriveFolde
 
 	defer file.Close()
 
+	log.Printf("Uploading file %s to folder: %s", info.Name(), googleDriveFolderId)
 	fileMetadata := &drive.File{
 		Name:    info.Name(),
 		Parents: []string{googleDriveFolderId},
