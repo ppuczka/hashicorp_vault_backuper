@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	vault "github.com/hashicorp/vault/api"
-	drive "google.golang.org/api/drive/v3"
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 	"log"
 	"os"

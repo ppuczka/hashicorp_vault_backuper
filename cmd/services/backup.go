@@ -137,11 +137,7 @@ func (bs BackupScheduler) onEventBackup(events chan BackupType) {
 
 				log.Printf("onEventBackup: error while uploading backup to Google Drive %v \n", err)
 				log.Printf("onEventBackup: noify by email \n")
-				bs.notifier.SendEmail(
-					bs.appConfig.VaultConfig.NotifyEmails,
-					backupErrorEmailSubject,
-					backupErrorEmailMessage,
-					bs.appConfig.VaultConfig.Mailbox)
+				SendNotification(bs.notifier, backupErrorEmailSubject, backupErrorEmailMessage)
 			} else {
 				log.Printf("New file id: %d\n", fileId)
 			}
@@ -150,7 +146,6 @@ func (bs BackupScheduler) onEventBackup(events chan BackupType) {
 }
 
 func (bs BackupScheduler) CreateVaultBackups() {
-
 	defer bs.wsConnection.Close()
 
 	events := make(chan BackupType, 10)

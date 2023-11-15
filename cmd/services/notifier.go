@@ -7,28 +7,38 @@ import (
 	"strings"
 )
 
-type EmailNotifier struct {
-	mailbox string
-	address string
-	auth    smtp.Auth
+type Notifier interface {
+	Notify(messageSubject, messageBody string)
 }
 
-func GetEmailNotifier(username, password, host, port, mailbox string) (EmailNotifier, error) {
+func SendNotification(n Notifier, messageSubject, messageBody string) {
+	n.Notify(messageSubject, messageBody)
+}
+
+type EmailNotifier struct {
+	recipients []string
+	mailbox    string
+	address    string
+	auth       smtp.Auth
+}
+
+func GetEmailNotifier(recipients []string, username, password, host, port, mailbox string) (EmailNotifier, error) {
 	auth := smtp.PlainAuth("", username, password, host)
 	return EmailNotifier{
-		mailbox: mailbox,
-		address: fmt.Sprintf("%s:%s", host, port),
-		auth:    auth}, nil
+		recipients: recipients,
+		mailbox:    mailbox,
+		address:    fmt.Sprintf("%s:%s", host, port),
+		auth:       auth}, nil
 }
 
-func (e EmailNotifier) SendEmail(recipients []string, emailSubject, messageBody, mailbox string) {
-	from := mailbox
+func (e EmailNotifier) Notify(messageSubject, messageBody string) {
+	from := e.mailbox
 
-	msg := fmt.Sprintf("To: %s \r\n", strings.Join(recipients, ",")) +
-		fmt.Sprintf("Subject: %s \r\n\r\n", emailSubject) +
+	msg := fmt.Sprintf("To: %s \r\n", strings.Join(e.recipients, ",")) +
+		fmt.Sprintf("Subject: %s \r\n\r\n", messageSubject) +
 		fmt.Sprintf("%s \r\n", messageBody)
 
-	err := smtp.SendMail(e.address, e.auth, from, recipients, []byte(msg))
+	err := smtp.SendMail(e.address, e.auth, from, e.recipients, []byte(msg))
 	if err != nil {
 		log.Printf("Warning: SendEmail - error while sending email %v", err)
 	} else {

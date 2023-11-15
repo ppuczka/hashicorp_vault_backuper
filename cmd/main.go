@@ -73,6 +73,7 @@ func main() {
 	}
 
 	emailNotifier, err := services.GetEmailNotifier(
+		appConfig.VaultConfig.NotifyEmails,
 		emailNotifierSecret.Data["login"].(string),
 		emailNotifierSecret.Data["pass"].(string),
 		appConfig.VaultConfig.EmailHost,
